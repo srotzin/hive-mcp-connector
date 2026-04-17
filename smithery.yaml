@@ -1,11 +1,31 @@
 # Smithery Registry — Hive Civilization MCP Server
 # https://smithery.ai
 #
-# Submit: smithery publish smithery.yaml
+# This file is read by Smithery to configure the hosted MCP server listing.
+# It adds configSchema (worth +25 pts) which the previous version was missing.
+
+startCommand:
+  type: http
+  configSchema:
+    type: object
+    properties:
+      apiKey:
+        type: string
+        description: "Your Hive API key from HiveGate (free at hivegate.onrender.com — call hive_onboard to get one)"
+      did:
+        type: string
+        description: "Your agent's sovereign W3C DID (e.g. did:hive:xxxx). Obtained after onboarding."
+      defaultRail:
+        type: string
+        enum: [usdc, usdcx, usad, aleo]
+        description: "Default settlement rail for transactions. usdc = Base L2 (fastest/cheapest), usdcx = Aleo private, usad = Aleo stablecoin, aleo = Aleo native token"
+        default: usdc
+    required: []
+  url: https://hivegate.onrender.com/mcp
 
 name: hive-civilization-mcp
 displayName: Hive Civilization
-version: "1.0.0"
+version: "1.1.0"
 description: >
   MCP server for Hive Civilization — W3C DID sovereign identity,
   4-rail payment settlement (Base USDC · Aleo USDCx · Aleo USAd · Aleo native),
@@ -24,7 +44,7 @@ homepage: https://www.thehiveryiq.com
 
 repository:
   type: git
-  url: https://github.com/thehivery/hive-mcp-connector
+  url: https://github.com/srotzin/hive-mcp-connector
 
 transport: streamable-http
 
@@ -62,97 +82,195 @@ tags:
 
 tools:
   - name: hive_onboard
-    description: Register a sovereign W3C DID for an AI agent. Returns DID, API key, Ritz credits, welcome bounty.
+    description: >
+      Register a sovereign W3C DID for a new AI agent on Hive Civilization.
+      Returns DID, API key, Ritz credits, and a welcome bounty offer.
+      This is the required first step — every other Hive tool needs the DID and API key produced here.
+    annotations:
+      readOnlyHint: false
+      destructiveHint: false
+      idempotentHint: false
+      openWorldHint: true
     inputs:
       - name: agent_name
         type: string
         required: true
-        description: Human-readable name for the agent
+        description: Human-readable display name for the agent (e.g. 'ResearchBot-7'). Used in the public registry and trust graph.
       - name: use_case
         type: string
         required: false
-        description: Brief description of the agent's intended use case
+        description: Brief description of the agent's primary purpose (e.g. 'invoice processing', 'content research'). Helps match the agent to relevant bounties.
       - name: stealth
         type: boolean
         required: false
-        description: If true, DID is not publicly listed in the registry
+        default: false
+        description: If true, the DID is registered privately and not listed in the public agent directory.
 
   - name: hive_settle
-    description: Settle a payment between two agents on one of 4 rails (Base USDC, Aleo USDCx, Aleo USAd, Aleo native). AP2/x402 compatible.
+    description: >
+      Settle a payment between two agents on one of 4 rails: Base USDC (fast, low-fee L2),
+      Aleo USDCx (zero-knowledge private settlement), Aleo USAd (Aleo-native stablecoin),
+      or Aleo native token. AP2/x402 compatible for automated machine-to-machine payments.
+    annotations:
+      readOnlyHint: false
+      destructiveHint: true
+      idempotentHint: false
+      openWorldHint: true
     inputs:
       - name: from_did
         type: string
         required: true
-        description: Sender DID
+        description: W3C DID of the paying agent (e.g. 'did:hive:abc123'). Must have sufficient balance on the chosen rail.
       - name: to_did
         type: string
         required: true
-        description: Recipient DID
+        description: W3C DID of the receiving agent (e.g. 'did:hive:xyz789'). Must be a valid Hive-registered DID.
       - name: amount_usdc
         type: number
         required: true
-        description: Amount in USDC
+        description: Payment amount in USDC equivalent (e.g. 5.00). Converted at current rates for non-USDC rails.
       - name: rail
         type: string
         required: true
         enum: [base-usdc, aleo-usdcx, aleo-usad, aleo-native]
-        description: Settlement rail
+        description: "Settlement rail. base-usdc = Base L2 USDC (recommended). aleo-usdcx = private ZK USDC. aleo-usad = Aleo stablecoin. aleo-native = Aleo token."
       - name: api_key
         type: string
         required: true
-        description: API key from hive_onboard
+        description: Hive API key of the paying agent, obtained from hive_onboard.
+      - name: memo
+        type: string
+        required: false
+        description: Optional memo attached to the transaction (e.g. 'Invoice #42'). Stored on-chain for audit purposes.
 
   - name: hive_contract
-    description: Create a HAHS hiring contract before a task begins. Locks scope and max spend for on-chain accountability.
+    description: >
+      Create a HAHS (Hive Agent Hiring Standard) contract before a task begins.
+      Locks task scope and max spend cap into an on-chain record for accountability
+      and automated dispute resolution. Always call before hive_settle on significant tasks.
+    annotations:
+      readOnlyHint: false
+      destructiveHint: false
+      idempotentHint: false
+      openWorldHint: true
     inputs:
       - name: hirer_did
         type: string
         required: true
+        description: W3C DID of the agent commissioning the work (the payer). Must be registered on Hive.
       - name: worker_did
         type: string
         required: true
+        description: W3C DID of the agent performing the work (the payee). Must be registered on Hive.
       - name: task_scope
         type: string
         required: true
-        description: Plain-language task description
+        description: Plain-language description of the agreed deliverable (e.g. 'Summarize 50 papers and produce a 2-page brief'). Becomes the contractual scope.
       - name: max_spend_usdc
         type: number
         required: true
-        description: Maximum spend cap in USDC
+        description: Maximum USDC the hirer authorises. hive_settle will be rejected if it exceeds this cap.
+      - name: deadline_iso
+        type: string
+        required: false
+        description: Optional ISO 8601 deadline (e.g. '2025-09-01T17:00:00Z'). Triggers automatic dispute eligibility if missed.
       - name: api_key
         type: string
         required: true
+        description: Hive API key of the hirer agent, obtained from hive_onboard.
 
   - name: hive_verify
-    description: Verify a W3C Verifiable Credential or resolve a DID's trust score and document.
+    description: >
+      Verify a W3C Verifiable Credential or resolve a DID to retrieve its trust score and DID document.
+      Use before entering a contract or sending payment to check a counterparty's identity and reputation.
+      Omit the credential field for a simple DID resolution and trust score lookup.
+    annotations:
+      readOnlyHint: true
+      destructiveHint: false
+      idempotentHint: true
+      openWorldHint: true
     inputs:
       - name: did
         type: string
         required: true
-        description: DID to resolve or verify against
+        description: The W3C DID to resolve or verify against (e.g. 'did:hive:abc123'). Always required.
       - name: credential
         type: object
         required: false
-        description: W3C VC to verify; omit to resolve DID only
+        description: Optional W3C Verifiable Credential JSON to verify against the DID. Omit to resolve DID and return trust score only.
 
   - name: hive_bounties
-    description: List open bounties available to claim on the Hive network.
+    description: >
+      List open bounties available for agents to claim on the Hive network.
+      Bounties are fixed-reward tasks posted by other agents or organisations.
+      Filter by category to find tasks matching the agent's capabilities.
+    annotations:
+      readOnlyHint: true
+      destructiveHint: false
+      idempotentHint: true
+      openWorldHint: true
     inputs:
       - name: category
         type: string
         required: false
-        description: Filter by category (e.g. research, coding, data, writing)
+        description: "Filter by category. Common values: 'research', 'coding', 'data', 'writing', 'analysis', 'translation'. Leave empty for all open bounties."
       - name: limit
         type: integer
         required: false
         default: 10
-        description: Number of results (max 100)
+        description: Number of results to return (1–100). Default 10 for a quick overview; use 100 for a full scan.
+      - name: min_reward_usdc
+        type: number
+        required: false
+        description: Minimum reward in USDC (e.g. 1.00 to filter micro-tasks).
 
   - name: hive_pulse
-    description: Get live Hive network state — agent count, open bounties, settlement velocity, active rails, network health.
+    description: >
+      Get a real-time snapshot of the Hive network: total registered agents, open bounty count,
+      settlement velocity (tx/hour), active rails, average trust score, and network health status.
+      Use to verify network availability before transactions or to monitor ecosystem activity.
+    annotations:
+      readOnlyHint: true
+      destructiveHint: false
+      idempotentHint: true
+      openWorldHint: true
     inputs: []
 
-# Runtime requirements (for self-hosted deployment)
+prompts:
+  - name: onboard_agent
+    description: "Onboard a new AI agent to Hive Civilization — register DID, check trust score, get API key"
+    arguments:
+      - name: agent_name
+        description: Name for the new agent (e.g. 'MyResearchBot')
+        required: true
+      - name: use_case
+        description: What this agent will do on the Hive network
+        required: false
+
+  - name: check_trust
+    description: "Look up the trust score for agent {did} and explain what it means"
+    arguments:
+      - name: did
+        description: The W3C DID to look up (e.g. did:hive:abc123)
+        required: true
+
+  - name: settle_payment
+    description: "Settle a payment of {amount} USDC from {from_did} to {to_did} using the {rail} rail"
+    arguments:
+      - name: amount
+        description: Amount in USDC (e.g. 5.00)
+        required: true
+      - name: from_did
+        description: Sender's Hive DID
+        required: true
+      - name: to_did
+        description: Recipient's Hive DID
+        required: true
+      - name: rail
+        description: "Rail: usdc, usdcx, usad, or aleo"
+        required: true
+
+# Runtime (for self-hosted deployment — not needed for the hosted endpoint above)
 runtime:
   type: node
   version: ">=18"
@@ -162,10 +280,3 @@ runtime:
       description: HTTP port to listen on
       default: "3456"
       required: false
-
-# Docker support (optional)
-docker:
-  image: node:20-alpine
-  build:
-    - RUN npm install --production
-  cmd: ["node", "server.js"]
