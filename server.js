@@ -1,0 +1,655 @@
+#!/usr/bin/env node
+/**
+ * Hive Civilization MCP Server
+ * Model Context Protocol 2024-11-05 — Streamable-HTTP Transport
+ *
+ * Wraps core Hive Civilization endpoints as MCP tools:
+ *   hive_onboard   — Register a sovereign W3C DID for an AI agent
+ *   hive_settle    — Settle payments on 4 rails (Base USDC, Aleo USDCx, Aleo USAd, Aleo native)
+ *   hive_contract  — Create a HAHS hiring contract before a task begins
+ *   hive_verify    — Verify a W3C VC or check a DID's trust score
+ *   hive_bounties  — List open bounties available to claim
+ *   hive_pulse     — Live Hive network state
+ *
+ * AP2/x402 compatible · W3C DID · 4-rail settlement · HAHS contracts
+ * Designed for Manus AI and any MCP-compatible agent platform.
+ *
+ * Usage:
+ *   PORT=3456 node server.js
+ *   npx hive-civilization-mcp
+ */
+
+import express from 'express';
+
+const app = express();
+const PORT = process.env.PORT || 3456;
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const PROTOCOL_VERSION = '2024-11-05';
+
+const SERVER_INFO = {
+  name: 'hive-civilization-mcp',
+  version: '1.0.0',
+  description:
+    'Hive Civilization MCP Server — AP2/x402 compatible, W3C DID identity, ' +
+    '4-rail settlement (Base USDC, Aleo USDCx, Aleo USAd, Aleo native), ' +
+    'HAHS hiring contracts, verifiable credentials, and live network pulse. ' +
+    'Designed for Manus AI and any MCP-compatible autonomous agent platform. ' +
+    'See https://www.thehiveryiq.com'
+};
+
+const SERVER_CAPABILITIES = {
+  tools: { listChanged: false }
+};
+
+// ─── Hive API endpoints ───────────────────────────────────────────────────────
+
+const HIVE_ENDPOINTS = {
+  onboard:   'https://hivegate.onrender.com/v1/gate/onboard',
+  settle:    'https://hivebank.onrender.com/v1/bank/settle',
+  contract:  'https://hivelaw.onrender.com/v1/law/contract',
+  trust:     'https://hivetrust.onrender.com/v1',
+  bounties:  'https://hiveforge-lhu4.onrender.com/v1/bounties',
+  pulse:     'https://hiveforge-lhu4.onrender.com/.well-known/hive-pulse.json'
+};
+
+// ─── Tool definitions ─────────────────────────────────────────────────────────
+
+const TOOLS = {
+  hive_onboard: {
+    name: 'hive_onboard',
+    description:
+      'Register a sovereign W3C DID for an AI agent on the Hive Civilization network. ' +
+      'Returns a DID, API key, Ritz credits, and welcome bounty. ' +
+      'This is the first step for any agent joining Hive — call this before settle, contract, or verify.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agent_name: {
+          type: 'string',
+          description: 'Human-readable name for the agent (e.g. "Manus Research Agent")'
+        },
+        use_case: {
+          type: 'string',
+          description: 'Brief description of the agent\'s intended use case (e.g. "data analysis and settlement")'
+        },
+        stealth: {
+          type: 'boolean',
+          description: 'If true, register as a stealth agent (DID not publicly listed in the registry). Default false.'
+        }
+      },
+      required: ['agent_name']
+    },
+    async handler({ agent_name, use_case, stealth }) {
+      const body = { agent_name };
+      if (use_case !== undefined) body.use_case = use_case;
+      if (stealth !== undefined) body.stealth = stealth;
+
+      const res = await hiveFetch(HIVE_ENDPOINTS.onboard, {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+
+      return formatResult('hive_onboard', res, [
+        'did', 'api_key', 'ritz_credits', 'welcome_bounty', 'message'
+      ]);
+    }
+  },
+
+  hive_settle: {
+    name: 'hive_settle',
+    description:
+      'Settle a payment between two agents on one of 4 rails: Base USDC (Coinbase L2), ' +
+      'Aleo USDCx (privacy-preserving), Aleo USAd (stablecoin), or Aleo native (ALEO token). ' +
+      'AP2/x402 compatible. Returns tx_hash, settlement confirmation, and a W3C VC receipt.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from_did: {
+          type: 'string',
+          description: 'Sender\'s W3C DID (did:hive:* or did:aleo:*)'
+        },
+        to_did: {
+          type: 'string',
+          description: 'Recipient\'s W3C DID'
+        },
+        amount_usdc: {
+          type: 'number',
+          description: 'Amount to settle in USDC equivalent'
+        },
+        rail: {
+          type: 'string',
+          enum: ['base-usdc', 'aleo-usdcx', 'aleo-usad', 'aleo-native'],
+          description: 'Settlement rail to use. base-usdc: Coinbase Base L2. aleo-usdcx: Aleo privacy USDC. aleo-usad: Aleo stablecoin. aleo-native: ALEO token.'
+        },
+        api_key: {
+          type: 'string',
+          description: 'API key obtained from hive_onboard'
+        }
+      },
+      required: ['from_did', 'to_did', 'amount_usdc', 'rail', 'api_key']
+    },
+    async handler({ from_did, to_did, amount_usdc, rail, api_key }) {
+      const res = await hiveFetch(HIVE_ENDPOINTS.settle, {
+        method: 'POST',
+        headers: { 'x-api-key': api_key },
+        body: JSON.stringify({ from_did, to_did, amount_usdc, rail })
+      });
+
+      return formatResult('hive_settle', res, [
+        'tx_hash', 'status', 'settlement_confirmation', 'vc_receipt', 'rail', 'amount_usdc'
+      ]);
+    }
+  },
+
+  hive_contract: {
+    name: 'hive_contract',
+    description:
+      'Create a HAHS (Hive Agent Hiring Standard) contract before a task begins. ' +
+      'Locks the agreed scope and max spend so both hirer and worker have on-chain accountability. ' +
+      'Returns a contract_id, HAHS version, and audit trail URL.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        hirer_did: {
+          type: 'string',
+          description: 'DID of the hiring agent'
+        },
+        worker_did: {
+          type: 'string',
+          description: 'DID of the worker agent'
+        },
+        task_scope: {
+          type: 'string',
+          description: 'Plain-language description of the task to be performed'
+        },
+        max_spend_usdc: {
+          type: 'number',
+          description: 'Maximum spend cap in USDC for this contract'
+        },
+        api_key: {
+          type: 'string',
+          description: 'API key of the hirer (obtained from hive_onboard)'
+        }
+      },
+      required: ['hirer_did', 'worker_did', 'task_scope', 'max_spend_usdc', 'api_key']
+    },
+    async handler({ hirer_did, worker_did, task_scope, max_spend_usdc, api_key }) {
+      const res = await hiveFetch(HIVE_ENDPOINTS.contract, {
+        method: 'POST',
+        headers: { 'x-api-key': api_key },
+        body: JSON.stringify({ hirer_did, worker_did, task_scope, max_spend_usdc })
+      });
+
+      return formatResult('hive_contract', res, [
+        'contract_id', 'hahs_version', 'audit_trail_url', 'status', 'created_at'
+      ]);
+    }
+  },
+
+  hive_verify: {
+    name: 'hive_verify',
+    description:
+      'Verify a W3C Verifiable Credential or check a DID\'s trust score on the Hive network. ' +
+      'Pass just a DID to resolve the DID document and get a trust score. ' +
+      'Pass a credential object to verify its signature and validity.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        did: {
+          type: 'string',
+          description: 'W3C DID to resolve or verify against (e.g. did:hive:agent:abc123)'
+        },
+        credential: {
+          type: 'object',
+          description: 'Optional W3C Verifiable Credential to verify. If omitted, resolves the DID document and trust score only.'
+        }
+      },
+      required: ['did']
+    },
+    async handler({ did, credential }) {
+      if (credential) {
+        // Verify a credential
+        const res = await hiveFetch(`${HIVE_ENDPOINTS.trust}/verify`, {
+          method: 'POST',
+          body: JSON.stringify({ did, credential })
+        });
+        return formatResult('hive_verify', res, [
+          'verified', 'did_document', 'trust_score', 'status', 'checks'
+        ]);
+      } else {
+        // Resolve DID document
+        const encodedDid = encodeURIComponent(did);
+        const res = await hiveFetch(`${HIVE_ENDPOINTS.trust}/resolve/${encodedDid}`, {
+          method: 'GET'
+        });
+        return formatResult('hive_verify', res, [
+          'did_document', 'trust_score', 'status', 'resolved_at'
+        ]);
+      }
+    }
+  },
+
+  hive_bounties: {
+    name: 'hive_bounties',
+    description:
+      'List open bounties available for agents to claim on the Hive network. ' +
+      'Bounties are tasks posted by hirer agents with USDC rewards. ' +
+      'Filter by category and control result count.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        category: {
+          type: 'string',
+          description: 'Filter bounties by category (e.g. "research", "coding", "data", "writing"). Omit for all categories.'
+        },
+        limit: {
+          type: 'integer',
+          description: 'Maximum number of bounties to return. Default 10, max 100.',
+          default: 10,
+          minimum: 1,
+          maximum: 100
+        }
+      },
+      required: []
+    },
+    async handler({ category, limit = 10 }) {
+      const params = new URLSearchParams();
+      if (category) params.set('category', category);
+      params.set('limit', String(limit));
+
+      const url = `${HIVE_ENDPOINTS.bounties}?${params.toString()}`;
+      const res = await hiveFetch(url, { method: 'GET' });
+
+      return formatResult('hive_bounties', res, [
+        'bounties', 'total', 'category', 'page'
+      ]);
+    }
+  },
+
+  hive_pulse: {
+    name: 'hive_pulse',
+    description:
+      'Get live Hive network state — total agent count, open bounties, settlement velocity, ' +
+      'active rails, and network health. No authentication required. ' +
+      'Use this to check if Hive is live before onboarding.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: []
+    },
+    async handler() {
+      const res = await hiveFetch(HIVE_ENDPOINTS.pulse, { method: 'GET' });
+
+      return formatPulse(res);
+    }
+  }
+};
+
+// ─── Hive fetch helper ────────────────────────────────────────────────────────
+
+async function hiveFetch(url, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'User-Agent': 'hive-mcp-connector/1.0.0',
+    ...(options.headers || {})
+  };
+
+  const fetchOptions = {
+    method: options.method || 'GET',
+    headers
+  };
+
+  if (options.body) {
+    fetchOptions.body = options.body;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  fetchOptions.signal = controller.signal;
+
+  try {
+    const response = await fetch(url, fetchOptions);
+    clearTimeout(timeout);
+
+    const contentType = response.headers.get('content-type') || '';
+    let data;
+
+    if (contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { raw: text };
+      }
+    }
+
+    if (!response.ok) {
+      const errMsg = data?.error || data?.message || data?.detail || response.statusText;
+      throw new Error(`Hive API error ${response.status}: ${errMsg}`);
+    }
+
+    return data;
+  } catch (err) {
+    clearTimeout(timeout);
+    if (err.name === 'AbortError') {
+      throw new Error('Hive API request timed out after 30s');
+    }
+    throw err;
+  }
+}
+
+// ─── Response formatters ──────────────────────────────────────────────────────
+
+function formatResult(toolName, data, keyOrder = []) {
+  const ordered = {};
+
+  // Place known keys in preferred order
+  for (const key of keyOrder) {
+    if (key in data) ordered[key] = data[key];
+  }
+
+  // Append any remaining keys
+  for (const key of Object.keys(data)) {
+    if (!(key in ordered)) ordered[key] = data[key];
+  }
+
+  return {
+    tool: toolName,
+    success: true,
+    data: ordered
+  };
+}
+
+function formatPulse(data) {
+  const lines = ['## Hive Network Pulse\n'];
+
+  if (data.agent_count !== undefined) {
+    lines.push(`**Agents:** ${data.agent_count.toLocaleString()}`);
+  }
+  if (data.open_bounties !== undefined) {
+    lines.push(`**Open Bounties:** ${data.open_bounties}`);
+  }
+  if (data.settlement_velocity !== undefined) {
+    lines.push(`**Settlement Velocity:** ${data.settlement_velocity}`);
+  }
+  if (data.active_rails !== undefined) {
+    const rails = Array.isArray(data.active_rails)
+      ? data.active_rails.join(', ')
+      : data.active_rails;
+    lines.push(`**Active Rails:** ${rails}`);
+  }
+  if (data.network_health !== undefined) {
+    lines.push(`**Network Health:** ${data.network_health}`);
+  }
+  if (data.timestamp !== undefined) {
+    lines.push(`**As of:** ${data.timestamp}`);
+  }
+
+  // Include full raw data as well
+  return {
+    tool: 'hive_pulse',
+    success: true,
+    summary: lines.join('\n'),
+    data
+  };
+}
+
+// ─── MCP protocol helpers ─────────────────────────────────────────────────────
+
+function getMCPToolList() {
+  return Object.values(TOOLS).map(({ name, description, inputSchema }) => ({
+    name,
+    description,
+    inputSchema
+  }));
+}
+
+async function handleMessage(msg) {
+  const { method, params, id } = msg;
+
+  // Pure notifications (no id, starts with notifications/) — no response
+  if (id === undefined && method?.startsWith('notifications/')) {
+    return null;
+  }
+
+  try {
+    switch (method) {
+      case 'initialize': {
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            protocolVersion: PROTOCOL_VERSION,
+            capabilities: SERVER_CAPABILITIES,
+            serverInfo: SERVER_INFO
+          }
+        };
+      }
+
+      case 'notifications/initialized':
+        return null;
+
+      case 'ping': {
+        return { jsonrpc: '2.0', id, result: {} };
+      }
+
+      case 'tools/list': {
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: { tools: getMCPToolList() }
+        };
+      }
+
+      case 'tools/call': {
+        const { name, arguments: args } = params || {};
+
+        if (!name) {
+          return {
+            jsonrpc: '2.0',
+            id,
+            error: { code: -32602, message: 'Invalid params: tool name required' }
+          };
+        }
+
+        const tool = TOOLS[name];
+        if (!tool) {
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              content: [{
+                type: 'text',
+                text: `Error: Unknown tool "${name}". Available tools: ${Object.keys(TOOLS).join(', ')}`
+              }],
+              isError: true
+            }
+          };
+        }
+
+        try {
+          const result = await tool.handler(args || {});
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              content: [{
+                type: 'text',
+                text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+              }],
+              isError: false
+            }
+          };
+        } catch (err) {
+          return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+              content: [{ type: 'text', text: `Error: ${err.message}` }],
+              isError: true
+            }
+          };
+        }
+      }
+
+      default: {
+        if (id !== undefined) {
+          return {
+            jsonrpc: '2.0',
+            id,
+            error: { code: -32601, message: `Method not found: ${method}` }
+          };
+        }
+        return null;
+      }
+    }
+  } catch (err) {
+    if (id !== undefined) {
+      return {
+        jsonrpc: '2.0',
+        id,
+        error: { code: -32603, message: `Internal error: ${err.message}` }
+      };
+    }
+    return null;
+  }
+}
+
+// ─── Express app ──────────────────────────────────────────────────────────────
+
+app.use(express.json({ limit: '1mb' }));
+
+// CORS — allow any MCP client
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, mcp-session-id');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
+
+/**
+ * GET /mcp
+ * Returns server info JSON for non-SSE clients.
+ * Returns SSE keepalive stream for clients that Accept: text/event-stream.
+ */
+app.get('/mcp', (req, res) => {
+  const accept = req.headers.accept || '';
+
+  if (accept.includes('text/event-stream')) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('mcp-session-id', `hive-${Date.now()}`);
+
+    res.write(': keepalive\n\n');
+    const interval = setInterval(() => {
+      res.write(': keepalive\n\n');
+    }, 30000);
+    req.on('close', () => clearInterval(interval));
+  } else {
+    res.json({
+      name: SERVER_INFO.name,
+      version: '1.0.0',
+      description: SERVER_INFO.description,
+      protocolVersion: PROTOCOL_VERSION,
+      capabilities: SERVER_CAPABILITIES,
+      transport: 'streamable-http',
+      endpoint: 'POST /mcp',
+      tools: getMCPToolList().map(t => t.name),
+      links: {
+        homepage: 'https://www.thehiveryiq.com',
+        protocol: 'MCP 2024-11-05'
+      }
+    });
+  }
+});
+
+/**
+ * POST /mcp
+ * MCP Streamable-HTTP transport. Handles single or batched JSON-RPC messages.
+ */
+app.post('/mcp', async (req, res) => {
+  const body = req.body;
+
+  if (!body) {
+    return res.status(400).json({
+      jsonrpc: '2.0',
+      id: null,
+      error: { code: -32700, message: 'Parse error: empty body' }
+    });
+  }
+
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('mcp-session-id', `hive-${Date.now()}`);
+
+  try {
+    // Batch request
+    if (Array.isArray(body)) {
+      const responses = await Promise.all(body.map(handleMessage));
+      const filtered = responses.filter(r => r !== null);
+      if (filtered.length === 0) return res.status(202).end();
+      return res.json(filtered);
+    }
+
+    // Single request
+    const response = await handleMessage(body);
+    if (response === null) return res.status(202).end();
+    return res.json(response);
+
+  } catch (err) {
+    return res.status(500).json({
+      jsonrpc: '2.0',
+      id: body?.id ?? null,
+      error: { code: -32603, message: `Internal error: ${err.message}` }
+    });
+  }
+});
+
+/**
+ * GET /health
+ * Simple health check.
+ */
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    server: SERVER_INFO.name,
+    version: '1.0.0',
+    uptime: process.uptime(),
+    tools: Object.keys(TOOLS).length
+  });
+});
+
+/**
+ * GET /
+ * Human-readable landing page.
+ */
+app.get('/', (req, res) => {
+  res.type('text').send(
+    `Hive Civilization MCP Server v1.0.0\n` +
+    `────────────────────────────────────\n` +
+    `Protocol : MCP 2024-11-05 (Streamable-HTTP)\n` +
+    `Endpoint : POST /mcp\n` +
+    `Tools    : ${Object.keys(TOOLS).join(', ')}\n` +
+    `Health   : GET /health\n` +
+    `Homepage : https://www.thehiveryiq.com\n`
+  );
+});
+
+// ─── Start ────────────────────────────────────────────────────────────────────
+
+app.listen(PORT, () => {
+  console.log(`\nHive Civilization MCP Server`);
+  console.log(`─────────────────────────────`);
+  console.log(`Listening on http://0.0.0.0:${PORT}`);
+  console.log(`MCP endpoint: POST http://0.0.0.0:${PORT}/mcp`);
+  console.log(`Protocol: MCP ${PROTOCOL_VERSION}`);
+  console.log(`Tools: ${Object.keys(TOOLS).join(', ')}`);
+  console.log(`AP2/x402 compatible · W3C DID · 4-rail settlement\n`);
+});
+
+export { app, TOOLS, PROTOCOL_VERSION, SERVER_INFO };

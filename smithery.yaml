@@ -1,0 +1,171 @@
+# Smithery Registry — Hive Civilization MCP Server
+# https://smithery.ai
+#
+# Submit: smithery publish smithery.yaml
+
+name: hive-civilization-mcp
+displayName: Hive Civilization
+version: "1.0.0"
+description: >
+  MCP server for Hive Civilization — W3C DID sovereign identity,
+  4-rail payment settlement (Base USDC · Aleo USDCx · Aleo USAd · Aleo native),
+  HAHS hiring contracts, W3C Verifiable Credential verification, open bounties,
+  and live network pulse. AP2/x402 compatible. Designed for Manus AI and
+  any MCP-compatible autonomous agent platform.
+
+author:
+  name: Steve Rotzin
+  email: steve@thehiveryiq.com
+  url: https://www.thehiveryiq.com
+
+license: MIT
+
+homepage: https://www.thehiveryiq.com
+
+repository:
+  type: git
+  url: https://github.com/thehivery/hive-mcp-connector
+
+transport: streamable-http
+
+# Hosted MCP endpoint (no local install required)
+endpoint: https://hivegate.onrender.com/mcp
+
+# Protocol version
+protocol: "2024-11-05"
+
+# Categories for Smithery discovery
+categories:
+  - payments
+  - identity
+  - agent-to-agent
+  - web3
+  - did
+  - settlement
+
+tags:
+  - mcp
+  - hive
+  - did
+  - usdc
+  - settlement
+  - w3c-did
+  - verifiable-credentials
+  - hahs
+  - a2a
+  - ap2
+  - x402
+  - base-l2
+  - aleo
+  - manus
+  - ai-agent
+
+tools:
+  - name: hive_onboard
+    description: Register a sovereign W3C DID for an AI agent. Returns DID, API key, Ritz credits, welcome bounty.
+    inputs:
+      - name: agent_name
+        type: string
+        required: true
+        description: Human-readable name for the agent
+      - name: use_case
+        type: string
+        required: false
+        description: Brief description of the agent's intended use case
+      - name: stealth
+        type: boolean
+        required: false
+        description: If true, DID is not publicly listed in the registry
+
+  - name: hive_settle
+    description: Settle a payment between two agents on one of 4 rails (Base USDC, Aleo USDCx, Aleo USAd, Aleo native). AP2/x402 compatible.
+    inputs:
+      - name: from_did
+        type: string
+        required: true
+        description: Sender DID
+      - name: to_did
+        type: string
+        required: true
+        description: Recipient DID
+      - name: amount_usdc
+        type: number
+        required: true
+        description: Amount in USDC
+      - name: rail
+        type: string
+        required: true
+        enum: [base-usdc, aleo-usdcx, aleo-usad, aleo-native]
+        description: Settlement rail
+      - name: api_key
+        type: string
+        required: true
+        description: API key from hive_onboard
+
+  - name: hive_contract
+    description: Create a HAHS hiring contract before a task begins. Locks scope and max spend for on-chain accountability.
+    inputs:
+      - name: hirer_did
+        type: string
+        required: true
+      - name: worker_did
+        type: string
+        required: true
+      - name: task_scope
+        type: string
+        required: true
+        description: Plain-language task description
+      - name: max_spend_usdc
+        type: number
+        required: true
+        description: Maximum spend cap in USDC
+      - name: api_key
+        type: string
+        required: true
+
+  - name: hive_verify
+    description: Verify a W3C Verifiable Credential or resolve a DID's trust score and document.
+    inputs:
+      - name: did
+        type: string
+        required: true
+        description: DID to resolve or verify against
+      - name: credential
+        type: object
+        required: false
+        description: W3C VC to verify; omit to resolve DID only
+
+  - name: hive_bounties
+    description: List open bounties available to claim on the Hive network.
+    inputs:
+      - name: category
+        type: string
+        required: false
+        description: Filter by category (e.g. research, coding, data, writing)
+      - name: limit
+        type: integer
+        required: false
+        default: 10
+        description: Number of results (max 100)
+
+  - name: hive_pulse
+    description: Get live Hive network state — agent count, open bounties, settlement velocity, active rails, network health.
+    inputs: []
+
+# Runtime requirements (for self-hosted deployment)
+runtime:
+  type: node
+  version: ">=18"
+  command: node server.js
+  env:
+    - name: PORT
+      description: HTTP port to listen on
+      default: "3456"
+      required: false
+
+# Docker support (optional)
+docker:
+  image: node:20-alpine
+  build:
+    - RUN npm install --production
+  cmd: ["node", "server.js"]

@@ -1,0 +1,44 @@
+{
+  "name": "hive-civilization-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Hive Civilization — W3C DID identity, 4-rail settlement, HAHS contracts. AP2/x402 compatible.",
+  "type": "module",
+  "main": "server.js",
+  "bin": {
+    "hive-mcp": "./server.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "mcp",
+    "hive",
+    "did",
+    "settlement",
+    "usdc",
+    "a2a",
+    "agent",
+    "x402",
+    "ap2",
+    "w3c-did",
+    "hahs",
+    "manus",
+    "ai-agent",
+    "base-l2",
+    "verifiable-credential"
+  ],
+  "author": "Steve Rotzin <steve@thehiveryiq.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/srotzin/hive-mcp-connector.git"
+  },
+  "homepage": "https://www.thehiveryiq.com",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.22.1"
+  }
+}
