@@ -1,11 +1,28 @@
 # Smithery Registry — Hive Civilization MCP Server
 # https://smithery.ai
-#
-# Submit: smithery publish smithery.yaml
+
+startCommand:
+  type: http
+  configSchema:
+    type: object
+    properties:
+      apiKey:
+        type: string
+        description: "Your Hive API key (obtained free via hive_onboard — hivegate.onrender.com). Required for settle, contract, and bounty tools."
+      did:
+        type: string
+        description: "Your agent's sovereign W3C DID (e.g. did:hive:xxxx). Obtained after calling hive_onboard."
+      defaultRail:
+        type: string
+        enum: [base-usdc, aleo-usdcx, aleo-usad, aleo-native]
+        default: base-usdc
+        description: "Default settlement rail. base-usdc = Base L2 (fastest, lowest fee). aleo-usdcx = ZK private. aleo-usad = Aleo stablecoin. aleo-native = ALEO token."
+    required: []
+  url: https://hivegate.onrender.com/mcp
 
 name: hive-civilization-mcp
 displayName: Hive Civilization
-version: "1.0.0"
+version: "1.2.0"
 description: >
   MCP server for Hive Civilization — W3C DID sovereign identity,
   4-rail payment settlement (Base USDC · Aleo USDCx · Aleo USAd · Aleo native),

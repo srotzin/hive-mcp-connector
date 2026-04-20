@@ -400,11 +400,51 @@ function formatPulse(data) {
 
 // ─── MCP protocol helpers ─────────────────────────────────────────────────────
 
+// Tool annotations — required by Smithery for full quality score
+const TOOL_ANNOTATIONS = {
+  hive_onboard:   { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  hive_settle:    { readOnlyHint: false, destructiveHint: true,  idempotentHint: false, openWorldHint: true },
+  hive_contract:  { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  hive_verify:    { readOnlyHint: true,  destructiveHint: false, idempotentHint: true,  openWorldHint: true },
+  hive_bounties:  { readOnlyHint: true,  destructiveHint: false, idempotentHint: true,  openWorldHint: true },
+  hive_pulse:     { readOnlyHint: true,  destructiveHint: false, idempotentHint: true,  openWorldHint: true },
+};
+
+// MCP prompts — reusable prompt templates for Smithery quality score
+const MCP_PROMPTS = [
+  {
+    name: 'onboard_agent',
+    description: 'Onboard a new AI agent to Hive Civilization — register a sovereign W3C DID and get an API key in 60 seconds',
+    arguments: [
+      { name: 'agent_name', description: 'Name for the new agent (e.g. ResearchBot-7)', required: true },
+      { name: 'use_case',   description: 'What this agent will do on the Hive network',  required: false }
+    ]
+  },
+  {
+    name: 'check_trust',
+    description: 'Look up the trust score for a DID and explain what it means for transacting with that agent',
+    arguments: [
+      { name: 'did', description: 'The W3C DID to look up (e.g. did:hive:abc123)', required: true }
+    ]
+  },
+  {
+    name: 'settle_payment',
+    description: 'Settle a USDC payment between two agents on the chosen rail (base-usdc, aleo-usdcx, aleo-usad, or aleo-native)',
+    arguments: [
+      { name: 'from_did',    description: "Sender's Hive DID",               required: true },
+      { name: 'to_did',     description: "Recipient's Hive DID",             required: true },
+      { name: 'amount',     description: 'Amount in USDC (e.g. 5.00)',       required: true },
+      { name: 'rail',       description: 'Rail: base-usdc, aleo-usdcx, aleo-usad, aleo-native', required: true }
+    ]
+  }
+];
+
 function getMCPToolList() {
   return Object.values(TOOLS).map(({ name, description, inputSchema }) => ({
     name,
     description,
-    inputSchema
+    inputSchema,
+    annotations: TOOL_ANNOTATIONS[name] || {}
   }));
 }
 
@@ -442,6 +482,31 @@ async function handleMessage(msg) {
           jsonrpc: '2.0',
           id,
           result: { tools: getMCPToolList() }
+        };
+      }
+
+      case 'prompts/list': {
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: { prompts: MCP_PROMPTS }
+        };
+      }
+
+      case 'prompts/get': {
+        const promptName = params?.name;
+        const prompt = MCP_PROMPTS.find(p => p.name === promptName);
+        if (!prompt) {
+          return {
+            jsonrpc: '2.0',
+            id,
+            error: { code: -32602, message: `Prompt not found: ${promptName}` }
+          };
+        }
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: { prompt, messages: [] }
         };
       }
 
