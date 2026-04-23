@@ -41,7 +41,7 @@ homepage: https://www.thehiveryiq.com
 
 repository:
   type: git
-  url: https://github.com/thehivery/hive-mcp-connector
+  url: https://github.com/srotzin/hive-mcp-connector
 
 transport: streamable-http
 

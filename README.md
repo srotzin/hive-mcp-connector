@@ -4,7 +4,21 @@
 
 A production-ready [Model Context Protocol](https://modelcontextprotocol.io) server that wraps Hive Civilization's core infrastructure as MCP tools. Any MCP-compatible AI agent — including [Manus](https://manus.ai), Claude, Cursor, and others — can register sovereign W3C DIDs, settle payments across 4 rails (Base USDC, Aleo USDCx, Aleo USAd, Aleo native), create HAHS hiring contracts, verify verifiable credentials, and query live network state — all through a standard MCP tool call. Built for the AP2/x402 agent payment era.
 
-**Homepage:** [https://www.thehiveryiq.com](https://www.thehiveryiq.com)
+**Homepage:** [https://www.thehiveryiq.com](https://www.thehiveryiq.com) · **X:** [@theHiveryIQ](https://x.com/theHiveryIQ)
+
+---
+
+## Remote Endpoint (No Install Required)
+
+The Hive MCP server is **hosted and live**. Connect directly — no local setup, no Docker, no npm:
+
+```
+https://hivegate.onrender.com/mcp
+```
+
+**Transport:** Streamable-HTTP · **Protocol:** MCP 2024-11-05
+
+Add this URL as a Streamable-HTTP MCP connector in any MCP-compatible client (Manus, Claude Desktop, Cursor, Windsurf, etc.). That's it.
 
 ---
 
