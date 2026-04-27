@@ -296,7 +296,7 @@ const SERVICE_CFG = {
   tagline: "A2A connector for LangChain, CrewAI, AutoGen, and Manus across the Hive Civilization.",
   description: "MCP server for HiveConnector \u2014 cross-ecosystem agent connector for LangChain, CrewAI, AutoGen, and Manus. A2A discovery and routing across the Hive Civilization. USDC settlement on Base L2. Real rails, no mocks.",
   keywords: ["mcp", "model-context-protocol", "x402", "a2a", "agentic", "ai-agent", "ai-agents", "llm", "hive", "hive-civilization", "agent-network", "agent-discovery", "langchain", "crewai", "autogen", "manus", "cross-ecosystem", "usdc", "base", "base-l2", "agent-economy"],
-  externalUrl: "https://hive-mcp-gateway.onrender.com/connector",
+  externalUrl: "https://hive-mcp-connector.onrender.com",
   gatewayMount: "/connector",
   version: "1.0.1",
   pricing: [
