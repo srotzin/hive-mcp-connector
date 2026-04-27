@@ -708,21 +708,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-/**
- * GET /
- * Human-readable landing page.
- */
-app.get('/', (req, res) => {
-  res.type('text').send(
-    `Hive Civilization MCP Server v1.0.0\n` +
-    `────────────────────────────────────\n` +
-    `Protocol : MCP 2024-11-05 (Streamable-HTTP)\n` +
-    `Endpoint : POST /mcp\n` +
-    `Tools    : ${Object.keys(TOOLS).join(', ')}\n` +
-    `Health   : GET /health\n` +
-    `Homepage : https://www.thehiveryiq.com\n`
-  );
-});
+// (legacy text/plain landing removed — see HIVE_META_BLOCK_v1 below)
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
