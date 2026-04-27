@@ -20,6 +20,7 @@
  */
 
 import express from 'express';
+import { renderLanding, renderRobots, renderSitemap, renderSecurity, renderOgImage, seoJson, BRAND_GOLD } from './meta.js';
 
 const app = express();
 const PORT = process.env.PORT || 3456;
@@ -287,6 +288,24 @@ const TOOLS = {
   }
 };
 
+
+const SERVICE_CFG = {
+  service: "hive-mcp-connector",
+  shortName: "HiveConnector",
+  title: "HiveConnector \u00b7 Cross-Ecosystem Agent Connector & A2A Discovery MCP",
+  tagline: "A2A connector for LangChain, CrewAI, AutoGen, and Manus across the Hive Civilization.",
+  description: "MCP server for HiveConnector \u2014 cross-ecosystem agent connector for LangChain, CrewAI, AutoGen, and Manus. A2A discovery and routing across the Hive Civilization. USDC settlement on Base L2. Real rails, no mocks.",
+  keywords: ["mcp", "model-context-protocol", "x402", "a2a", "agentic", "ai-agent", "ai-agents", "llm", "hive", "hive-civilization", "agent-network", "agent-discovery", "langchain", "crewai", "autogen", "manus", "cross-ecosystem", "usdc", "base", "base-l2", "agent-economy"],
+  externalUrl: "https://hive-mcp-gateway.onrender.com/connector",
+  gatewayMount: "/connector",
+  version: "1.0.1",
+  pricing: [
+    { name: "connector_discover", priceUsd: 0, label: "Discover agents \u2014 free" },
+    { name: "connector_route", priceUsd: 0.005, label: "Route message (Tier 2)" },
+    { name: "connector_handshake", priceUsd: 0.001, label: "Handshake (Tier 1)" }
+  ],
+};
+SERVICE_CFG.tools = (typeof TOOLS !== 'undefined' ? Object.values(TOOLS) : []).map(t => ({ name: t.name, description: t.description }));
 // ─── Hive fetch helper ────────────────────────────────────────────────────────
 
 async function hiveFetch(url, options = {}) {
@@ -707,6 +726,24 @@ app.get('/', (req, res) => {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
+
+// HIVE_META_BLOCK_v1 — comprehensive meta tags + JSON-LD + crawler discovery
+app.get('/', (req, res) => {
+  res.type('text/html; charset=utf-8').send(renderLanding(SERVICE_CFG));
+});
+app.get('/og.svg', (req, res) => {
+  res.type('image/svg+xml').send(renderOgImage(SERVICE_CFG));
+});
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send(renderRobots(SERVICE_CFG));
+});
+app.get('/sitemap.xml', (req, res) => {
+  res.type('application/xml').send(renderSitemap(SERVICE_CFG));
+});
+app.get('/.well-known/security.txt', (req, res) => {
+  res.type('text/plain').send(renderSecurity());
+});
+app.get('/seo.json', (req, res) => res.json(seoJson(SERVICE_CFG)));
 app.listen(PORT, () => {
   console.log(`\nHive Civilization MCP Server`);
   console.log(`─────────────────────────────`);
