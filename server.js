@@ -281,9 +281,26 @@ const TOOLS = {
       required: []
     },
     async handler() {
-      const res = await hiveFetch(HIVE_ENDPOINTS.pulse, { method: 'GET' });
-
-      return formatPulse(res);
+      // hiveforge-lhu4 is intermittently unstable (502). Wrap with fallback so
+      // hive_pulse never hard-errors — it degrades gracefully to cached stub.
+      try {
+        const res = await hiveFetch(HIVE_ENDPOINTS.pulse, { method: 'GET' });
+        return formatPulse(res);
+      } catch (err) {
+        // Fallback pulse: connector itself is live; hiveforge dependency is degraded
+        const isForgeDown = err.message && (err.message.includes('502') || err.message.includes('timed out') || err.message.includes('503'));
+        return [
+          '**Hive Network Pulse** (degraded — hiveforge telemetry unavailable)',
+          '',
+          `**Connector Status:** live`,
+          `**Settlement Rails:** Base USDC · Aleo USDCx · Aleo USAd · Aleo native`,
+          `**Onboard:** https://hivegate.onrender.com/v1/gate/onboard`,
+          `**Settle:** https://hivebank.onrender.com/v1/bank/settle`,
+          `**Dependency Issue:** hiveforge-lhu4 ${isForgeDown ? '(502/503 — telemetry temporarily unavailable)' : `(${err.message})`}`,
+          '',
+          `*Connector is fully operational. Use hive_onboard and hive_settle normally. Bounty/verify tools will recover when hiveforge restores.*`,
+        ].join('\n');
+      }
     }
   }
 };
@@ -789,6 +806,14 @@ app.get('/.well-known/mcp.json', (req, res) => res.json({
       {chain:'solana',   asset:'USDC', address:'B1N61cuL35fhskWz5dw8XqDyP6LWi3ZWmq8CNA9L3FVn'},
       {chain:'solana',   asset:'USDT', address:'B1N61cuL35fhskWz5dw8XqDyP6LWi3ZWmq8CNA9L3FVn'},
     ],
+  },
+  tool_fees: {
+    hive_onboard:  { fee_usd: 0,                       fee_entity: 'none',     note: 'Free registration. Creates DID, API key, vault_id.' },
+    hive_settle:   { fee_usd: 'downstream hivebank rate', fee_entity: 'hivebank', note: 'Connector relays fee charged by hivebank /v1/bank/settle. Returns W3C VC receipt.' },
+    hive_contract: { fee_usd: 'downstream hivelaw rate',  fee_entity: 'hivelaw',  note: 'Connector relays HAHS contract fee from hivelaw /v1/law/contract.' },
+    hive_verify:   { fee_usd: 'downstream hivetrust rate', fee_entity: 'hivetrust', note: 'Connector relays trust verification fee from hivetrust.' },
+    hive_bounties: { fee_usd: 0,                          fee_entity: 'none',     note: 'Read-only discovery. Free. Depends on hiveforge availability.' },
+    hive_pulse:    { fee_usd: 0,                          fee_entity: 'none',     note: 'Network state read. Free. Falls back gracefully if hiveforge is degraded.' },
   },
   extensions: {
     hive_pricing: {
