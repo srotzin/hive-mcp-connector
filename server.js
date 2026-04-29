@@ -786,6 +786,11 @@ app.get('/.well-known/ap2.json', (req, res) => res.json({
 }));
 
 
+app.get('/.well-known/mcp-registry-auth', (req, res) => {
+  res.setHeader('Content-Type', 'text/plain');
+  res.send('v=MCPv1; k=ed25519; p=Z8vt36ceqo50CZlIkMaQte34od+XG71EXN18pOvZQ0s=');
+});
+
 app.get('/.well-known/mcp.json', (req, res) => res.json({
   name: 'hive-mcp-connector',
   version: '1.0.1',
