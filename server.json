@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.srotzin/hive-mcp-connector",
+  "description": "Hive Civilization umbrella connector \u2014 4-rail USDC settlement, HAHS contracts, W3C DID identity.",
+  "title": "Hive Mcp Connector",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/srotzin/hive-mcp-connector",
+    "source": "github"
+  },
+  "websiteUrl": "https://thehiveryiq.com",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://hive-mcp-connector.onrender.com/mcp"
+    }
+  ]
+}
