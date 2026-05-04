@@ -1,18 +1,29 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.srotzin/hive-mcp-connector",
-  "description": "Hive Civilization MCP: W3C DID identity, 4-rail payments, HAHS contracts, and bounties.",
-  "title": "Hive Civilization Connector",
+  "description": "MCP server for Hive Civilization",
+  "title": "Hive Connector",
+  "websiteUrl": "https://thehiveryiq.com",
   "repository": {
     "url": "https://github.com/srotzin/hive-mcp-connector",
     "source": "github"
   },
-  "version": "1.0.0",
-  "websiteUrl": "https://www.hiveagentiq.com",
+  "version": "1.0.1",
   "remotes": [
     {
       "type": "streamable-http",
-      "url": "https://hive-mcp-connector.onrender.com/mcp"
+      "url": "https://hive-mcp-gateway.onrender.com/connector/mcp"
     }
-  ]
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "tool": "hive-release-tool",
+      "version": "1.0.0",
+      "build_info": {
+        "stack": "hive-civilization",
+        "settlement": "USDC on Base",
+        "license": "MIT"
+      }
+    }
+  }
 }
